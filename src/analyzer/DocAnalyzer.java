@@ -13,6 +13,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
+import jdk.internal.org.xml.sax.SAXException;
 import json.JSONArray;
 import json.JSONException;
 import json.JSONObject;
@@ -24,6 +29,9 @@ import opennlp.tools.util.InvalidFormatException;
 import org.tartarus.snowball.SnowballStemmer;
 import org.tartarus.snowball.ext.englishStemmer;
 import org.tartarus.snowball.ext.porterStemmer;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import structures.Post;
 
@@ -39,8 +47,8 @@ public class DocAnalyzer {
 	HashSet<String> m_stopwords;
 	
 	//you can store the loaded reviews in this arraylist for further processing
-	ArrayList<Post> m_reviews;
-	
+	ArrayList<String> m_reviews;
+	ArrayList<ArrayList<Double>> tf_idf;
 	//you might need something like this to store the counting statistics for validating Zipf's and computing IDF
 	//HashMap<String, Token> m_stats;	
 	
@@ -49,7 +57,7 @@ public class DocAnalyzer {
 	ArrayList<HashMap<String, Integer>> tf; // term frequencies for each review
 	HashMap<String, Integer> df; // document frequency table
 	public DocAnalyzer() throws InvalidFormatException, FileNotFoundException, IOException {
-		m_reviews = new ArrayList<Post>();
+		m_reviews = new ArrayList<String>();
 		tf = new ArrayList<HashMap<String, Integer>>();
 		df = new HashMap<String, Integer>();
 		m_tokenizer = new TokenizerME(new TokenizerModel(new FileInputStream("./data/Model/en-token.bin")));
@@ -76,67 +84,58 @@ public class DocAnalyzer {
 		}
 	}
 	
-	public void analyzeDocument(JSONObject json) {		
-		try {
-			JSONArray jarray = json.getJSONArray("Reviews"); // change
-			for(int i=0; i<jarray.length(); i++) {
-				Post review = new Post(jarray.getJSONObject(i));
-				/**
-				 * HINT: perform necessary text processing here, e.g., tokenization, stemming and normalization
-				 */
-				String[] tokens = m_tokenizer.tokenize(review.getContent());
-				HashMap<String, Integer> document_tf = new HashMap<String, Integer>();
-				for(String token : tokens) {
-					if(!document_tf.containsKey(token))
-						document_tf.put(token, 1);
-					else
-						document_tf.put(token, document_tf.get(token) + 1);
-				}
-				tf.add(document_tf);
-				for(String token : document_tf.keySet()) {
-					if(!df.containsKey(token))
-						df.put(token, 1);
-					else
-						df.put(token, df.get(token) + 1);
-				}
-				m_reviews.add(review);
-			}
-		} catch (JSONException e) {
-			e.printStackTrace();
+	public void analyzeDocument(String text) {		
+		/**
+		 * HINT: perform necessary text processing here, e.g., tokenization, stemming and normalization
+		 */
+		// to do: stemming
+		String[] tokens = m_tokenizer.tokenize(text);
+		for(int j = 0; j < tokens.length; j++)
+			tokens[j] = SnowballStemmingDemo(tokens[j]);
+		HashMap<String, Integer> document_tf = new HashMap<String, Integer>();
+		for(String token : tokens) {
+			if(!document_tf.containsKey(token))
+				document_tf.put(token, 1);
+			else
+				document_tf.put(token, document_tf.get(token) + 1);
 		}
+		tf.add(document_tf);
+		for(String token : document_tf.keySet()) {
+			if(!df.containsKey(token))
+				df.put(token, 1);
+			else
+				df.put(token, df.get(token) + 1);
+		}
+		m_reviews.add(text);
 	}
 	
 	//sample code for loading a json file
-	public JSONObject LoadJson(String filename) {
-		try {
-			BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(filename), "UTF-8"));
-			StringBuffer buffer = new StringBuffer(1024);
-			String line;
-			
-			while((line=reader.readLine())!=null) {
-				buffer.append(line);
-			}
-			reader.close();
-			
-			return new JSONObject(buffer.toString());
-		} catch (IOException e) {
-			System.err.format("[Error]Failed to open file %s!", filename);
-			e.printStackTrace();
-			return null;
-		} catch (JSONException e) {
-			System.err.format("[Error]Failed to parse json file %s!", filename);
-			e.printStackTrace();
-			return null;
-		}
+	public String LoadXML(String filename) throws org.xml.sax.SAXException, SAXException {
+		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+	    //factory.setValidating(true);
+	    //factory.
+	    factory.setIgnoringElementContentWhitespace(true);
+	    Document doc = null;
+	    try {
+	        DocumentBuilder builder = factory.newDocumentBuilder();
+	        File file = new File(filename);
+	        doc = builder.parse(file);
+	        // Do something with the document here.
+	    } catch (ParserConfigurationException e) {
+	    } catch (IOException e) { 
+	    }
+	    //NodeList nl = doc.getElementsByTagName("text");
+	    //Node n = doc.getElementsByTagName("text").item(0);
+		return doc.getElementsByTagName("text").item(0).getNodeValue();
 	}
 	
 	// sample code for demonstrating how to recursively load files in a directory 
-	public void LoadDirectory(String folder, String suffix) {
+	public void LoadDirectory(String folder, String suffix) throws org.xml.sax.SAXException, SAXException {
 		File dir = new File(folder);
 		int size = m_reviews.size();
 		for (File f : dir.listFiles()) {
 			if (f.isFile() && f.getName().endsWith(suffix)){
-				analyzeDocument(LoadJson(f.getAbsolutePath()));
+				analyzeDocument(LoadXML(f.getAbsolutePath()));
 			}
 			else if (f.isDirectory())
 				LoadDirectory(f.getAbsolutePath(), suffix);
@@ -199,18 +198,95 @@ public class DocAnalyzer {
 		}
 	}
 	
-	public static void main(String[] args) throws InvalidFormatException, FileNotFoundException, IOException {		
+	public double tf(String t, int d) {
+		if(!tf.get(d).containsKey(t))
+			return 0;
+		int raw_tf = tf.get(d).get(t);
+		return 1 + Math.log(raw_tf);
+	}
+	
+	public double df(String t) {
+		double N = tf.size();
+		int n_t = df.get(t);
+		return Math.log(N / n_t);
+	}
+	
+	public double tf_idf(String t, int d) {
+		return tf(t, d) * df(t);
+	}
+	
+	public ArrayList<Double> tf_idf(int d) {
+		ArrayList<Double> temp = new ArrayList<Double>();
+		for(String t : df.keySet())
+			temp.add(tf_idf(t, d));
+		return temp;
+	}
+	
+	public ArrayList<ArrayList<Double>> tf_idf() {
+		ArrayList<ArrayList<Double>> temp = new ArrayList<ArrayList<Double>>();
+		for(int d = 0; d < tf.size(); d++)
+			temp.add(tf_idf(d));
+		return temp;
+	}
+	
+	public static double magnitude(ArrayList<Double> tf_idf) {
+		double sum = 0;
+		for(int i = 0; i < tf_idf.size(); i++)
+			sum += Math.pow(tf_idf.get(i), 2);
+		return Math.sqrt(sum);
+	}
+	
+	public static double dotProduct(ArrayList<Double> tf_idf1, ArrayList<Double> tf_idf2) {
+		double sum = 0;
+		for(int i = 0; i < tf_idf1.size(); i++)
+			sum += tf_idf1.get(i) * tf_idf2.get(i);
+		return sum;
+	}
+	
+	public static double cosineSimilarity(ArrayList<Double> tf_idf1, ArrayList<Double> tf_idf2) {
+		double mag1 = magnitude(tf_idf1);
+		double mag2 = magnitude(tf_idf2);
+		if(mag1 * mag2 == 0)
+			return 0;
+		return dotProduct(tf_idf1, tf_idf2) / (magnitude(tf_idf1) * magnitude(tf_idf2));
+	}
+	
+	public ArrayList<Double> queryVector(String query) {
+		ArrayList<Double> temp = new ArrayList<Double>();
+		String[] tokens = m_tokenizer.tokenize(query.toLowerCase());
+		HashSet<String> unigrams = new HashSet<String>();
+		for(int i = 0; i < tokens.length; i++)
+			unigrams.add(SnowballStemmingDemo(tokens[i]));
+		// bag of words model for query
+		for(String t : df.keySet()) {
+			if(unigrams.contains(t))
+				temp.add(df(t));
+			else
+				temp.add(0.0);
+			}
+		return temp;
+		}
+	
+	public String bestMatch(String query) {
+		int bestIndex = 0;
+		double bestSim = 0;
+		ArrayList<Double> queryVec = queryVector(query);
+		for(int i = 0; i < tf_idf.size(); i++) {
+			double sim = cosineSimilarity(tf_idf.get(i), queryVec);
+			if(sim > bestSim) {
+				bestSim = sim;
+				bestIndex = i;
+			}
+		}
+		return m_reviews.get(bestIndex);
+	}
+	
+	public static void main(String[] args) throws InvalidFormatException, FileNotFoundException, IOException, org.xml.sax.SAXException, SAXException {		
 		DocAnalyzer analyzer = new DocAnalyzer();
-		
-		//codes for demonstrating tokenization and stemming
-		analyzer.TokenizerDemon("I've practiced for 30 years in pediatrics, and I've never seen anything quite like this.");
-		
-		//codes for loading json file
-		//analyzer.analyzeDocumentDemo(analyzer.LoadJson("./data/Samples/query.json"));
-		
-		//when we want to execute it in command line
-		String dir_name = "./data/Samples";
-		analyzer.LoadDirectory(dir_name, ".json");
+		String dir_name = "./data/movies-data-v1.0/reviews";
+		analyzer.LoadDirectory(dir_name, ".xml");
+		analyzer.tf_idf = analyzer.tf_idf(); // initialize tf-idf vectors
+		System.out.println(analyzer.bestMatch("rock"));
 	}
 
 }
