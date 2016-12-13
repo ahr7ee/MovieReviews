@@ -10,6 +10,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -46,8 +47,9 @@ public class DocAnalyzer {
 	
 	//you can store the loaded reviews in this arraylist for further processing
 	ArrayList<String> m_reviews;
+	ArrayList<String> movie_names;
 	ArrayList<ArrayList<Double>> tf_idf;
-	HashSet<String> vocab;
+	ArrayList<String> vocab;
 	//you might need something like this to store the counting statistics for validating Zipf's and computing IDF
 	//HashMap<String, Token> m_stats;	
 	
@@ -60,7 +62,8 @@ public class DocAnalyzer {
 		tf = new ArrayList<HashMap<String, Integer>>();
 		df = new HashMap<String, Integer>();
 		m_tokenizer = new TokenizerME(new TokenizerModel(new FileInputStream("./data/Model/en-token.bin")));
-		vocab = new HashSet<String>();
+		vocab = new ArrayList<String>();
+		movie_names = new ArrayList<String>();
 	}
 	
 	//sample code for loading a list of stopwords from file
@@ -114,7 +117,7 @@ public class DocAnalyzer {
 		m_reviews.add(text);
 	}
 	
-	//sample code for loading a json file
+	//sample code for loading a xml file
 	public String LoadXML(String filename) throws org.xml.sax.SAXException, SAXException {
 		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 	    //factory.setValidating(true);
@@ -137,7 +140,9 @@ public class DocAnalyzer {
 		File dir = new File(folder);
 		int size = m_reviews.size();
 		for (File f : dir.listFiles()) {
-			if (f.isFile() && f.getName().endsWith(suffix)){
+			String name = f.getName();
+			if (f.isFile() && name.endsWith(suffix)){
+				movie_names.add(name.substring(0, name.length() - 4));
 				analyzeDocument(LoadXML(f.getAbsolutePath()));
 			}
 			else if (f.isDirectory())
@@ -180,25 +185,6 @@ public class DocAnalyzer {
 		// and convert the recognized integers and doubles to a special symbol "NUM"
 		
 		return token;
-	}
-	
-	public void TokenizerDemon(String text) {
-		try {
-			
-			/**
-			 * HINT: instead of constructing the Tokenizer instance every time when you perform tokenization,
-			 * construct a global Tokenizer instance once and evoke it everytime when you perform tokenization.
-			 */
-			Tokenizer tokenizer = new TokenizerME(new TokenizerModel(new FileInputStream("./data/Model/en-token.bin")));
-			
-			System.out.format("Token\tNormalization\tSnonball Stemmer\tPorter Stemmer\n");
-			for(String token:tokenizer.tokenize(text)){
-				System.out.format("%s\t%s\t%s\t%s\n", token, NormalizationDemo(token), SnowballStemmingDemo(token), PorterStemmingDemo(token));
-			}
-		}
-		catch (IOException e) {
-		  e.printStackTrace();
-		}
 	}
 	
 	public double tf(String t, int d) {
@@ -284,6 +270,27 @@ public class DocAnalyzer {
 		return m_reviews.get(bestIndex);
 	}
 	
+	public HashSet<Integer> movieIndices(String name) {
+		HashSet<Integer> temp = new HashSet<Integer>();
+		for(int i = 0; i < movie_names.size(); i++)
+			if(movie_names.get(i).equals(name))
+				temp.add(i);
+		return temp;
+	}
+	
+	public ArrayList<Double> tf_idf_avg(String name) {
+		HashSet<Integer> ix = movieIndices(name);
+		Double [] temp = new Double[vocab.size()];
+		for(int i : ix) {
+			ArrayList<Double> movie_vec = tf_idf.get(i);
+			for(int j = 0; j < movie_vec.size(); j++)
+				temp[j] += movie_vec.get(j);
+		}
+		for(int i = 0; i < temp.length; i++)
+			temp[i] /= Math.max(ix.size(), 1); // avoid division by 0
+		return (ArrayList<Double>) Arrays.asList(temp);
+	}
+	
 	public static void main(String[] args) throws InvalidFormatException, FileNotFoundException, IOException, org.xml.sax.SAXException, SAXException {		
 		DocAnalyzer analyzer = new DocAnalyzer();
 		String dir_name = "./data/movies-data-v1.0/reviews";
@@ -294,11 +301,46 @@ public class DocAnalyzer {
 		System.out.println(analyzer.bestMatch(testQuery));
 	}
 
-
+	public void movieRecommendations(String name, int numKeywords, int moviesPerQuery) {
+		ArrayList<Double> vec = tf_idf_avg(name);
+		HashSet<String> keywords = getKeywords(vec, numKeywords);
+		HashSet<String> movies = new HashSet<String>();
+		for(String word : keywords) {
+			HashSet<String> similarMovies = moviesQuery(word, moviesPerQuery);
+		}
+			
+	}
 	
+	private HashSet<String> moviesQuery(String word, int moviesPerQuery) {
+		// TODO Auto-generated method stub
+		HashMap<String, Double> relevance = new HashMap<String, Double>();
+		int index = vocab.indexOf(word);
+		for(String movie : movie_names) {
+			//movieVec = 
+		}
+		return null;
+	}
+
+	private HashSet<String> getKeywords(ArrayList<Double> vec, int numKeywords) {
+		HashSet<String> keywords = new HashSet<String>();
+		while(keywords.size() < numKeywords) {
+			double max = 0;
+			String best = "";
+		for(int i = 0; i < vocab.size(); i++) {
+			String word = vocab.get(i);
+			if(vec.get(i) > max && !keywords.contains(word)) {
+				max = vec.get(i);
+				best = word;
+			}
+		}
+		keywords.add(best);
+	}
+		return keywords;
+	}
+
 	private void setVocabulary(int vocSize) {
 		// TODO Auto-generated method stub
-		HashSet<String> chosen = new HashSet<String>();
+		ArrayList<String> chosen = new ArrayList<String>();
 		while(chosen.size() < vocSize) {
 			int max = 0;
 			String best = "";
