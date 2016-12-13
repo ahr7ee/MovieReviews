@@ -10,17 +10,17 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Set;
+import java.util.TreeMap;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
 import jdk.internal.org.xml.sax.SAXException;
-import json.JSONArray;
-import json.JSONException;
-import json.JSONObject;
 import opennlp.tools.tokenize.Tokenizer;
 import opennlp.tools.tokenize.TokenizerME;
 import opennlp.tools.tokenize.TokenizerModel;
@@ -30,10 +30,8 @@ import org.tartarus.snowball.SnowballStemmer;
 import org.tartarus.snowball.ext.englishStemmer;
 import org.tartarus.snowball.ext.porterStemmer;
 import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 
-import structures.Post;
+import com.sun.javafx.collections.MappingChange.Map;
 
 /**
  * @author hongning
@@ -49,6 +47,7 @@ public class DocAnalyzer {
 	//you can store the loaded reviews in this arraylist for further processing
 	ArrayList<String> m_reviews;
 	ArrayList<ArrayList<Double>> tf_idf;
+	HashSet<String> vocab;
 	//you might need something like this to store the counting statistics for validating Zipf's and computing IDF
 	//HashMap<String, Token> m_stats;	
 	
@@ -61,6 +60,7 @@ public class DocAnalyzer {
 		tf = new ArrayList<HashMap<String, Integer>>();
 		df = new HashMap<String, Integer>();
 		m_tokenizer = new TokenizerME(new TokenizerModel(new FileInputStream("./data/Model/en-token.bin")));
+		vocab = new HashSet<String>();
 	}
 	
 	//sample code for loading a list of stopwords from file
@@ -89,7 +89,7 @@ public class DocAnalyzer {
 		 * HINT: perform necessary text processing here, e.g., tokenization, stemming and normalization
 		 */
 		// to do: stemming
-		String[] tokens = m_tokenizer.tokenize(text);
+		String[] tokens = m_tokenizer.tokenize(text.toLowerCase());
 		for(int j = 0; j < tokens.length; j++)
 			tokens[j] = SnowballStemmingDemo(tokens[j]);
 		HashMap<String, Integer> document_tf = new HashMap<String, Integer>();
@@ -98,14 +98,19 @@ public class DocAnalyzer {
 				document_tf.put(token, 1);
 			else
 				document_tf.put(token, document_tf.get(token) + 1);
-		}
-		tf.add(document_tf);
-		for(String token : document_tf.keySet()) {
 			if(!df.containsKey(token))
 				df.put(token, 1);
 			else
 				df.put(token, df.get(token) + 1);
 		}
+		tf.add(document_tf);
+		/*for(String token : document_tf.keySet()) {
+			if(!df.containsKey(token))
+				df.put(token, 1);
+			else
+				df.put(token, df.get(token) + 1);
+			if(!)
+		}*/
 		m_reviews.add(text);
 	}
 	
@@ -124,9 +129,7 @@ public class DocAnalyzer {
 	    } catch (ParserConfigurationException e) {
 	    } catch (IOException e) { 
 	    }
-	    //NodeList nl = doc.getElementsByTagName("text");
-	    //Node n = doc.getElementsByTagName("text").item(0);
-		return doc.getElementsByTagName("text").item(0).getNodeValue();
+		return doc.getElementsByTagName("text").item(0).getFirstChild().getNodeValue();
 	}
 	
 	// sample code for demonstrating how to recursively load files in a directory 
@@ -217,7 +220,7 @@ public class DocAnalyzer {
 	
 	public ArrayList<Double> tf_idf(int d) {
 		ArrayList<Double> temp = new ArrayList<Double>();
-		for(String t : df.keySet())
+		for(String t : vocab)
 			temp.add(tf_idf(t, d));
 		return temp;
 	}
@@ -285,8 +288,28 @@ public class DocAnalyzer {
 		DocAnalyzer analyzer = new DocAnalyzer();
 		String dir_name = "./data/movies-data-v1.0/reviews";
 		analyzer.LoadDirectory(dir_name, ".xml");
+		analyzer.setVocabulary(5000);
 		analyzer.tf_idf = analyzer.tf_idf(); // initialize tf-idf vectors
-		System.out.println(analyzer.bestMatch("rock"));
+		String testQuery = "my hot day";
+		System.out.println(analyzer.bestMatch(testQuery));
 	}
 
+
+	
+	private void setVocabulary(int vocSize) {
+		// TODO Auto-generated method stub
+		HashSet<String> chosen = new HashSet<String>();
+		while(chosen.size() < vocSize) {
+			int max = 0;
+			String best = "";
+		for(String t : df.keySet()) {
+			if(df.get(t) > max && !chosen.contains(t)) {
+				max = df.get(t);
+				best = t;
+			}
+		}
+		chosen.add(best);
+	}
+		vocab = chosen;
+	}
 }
