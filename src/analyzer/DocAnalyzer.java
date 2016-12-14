@@ -10,12 +10,9 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.Scanner;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -31,8 +28,6 @@ import org.tartarus.snowball.SnowballStemmer;
 import org.tartarus.snowball.ext.englishStemmer;
 import org.tartarus.snowball.ext.porterStemmer;
 import org.w3c.dom.Document;
-
-import com.sun.javafx.collections.MappingChange.Map;
 
 /**
  * @author hongning Sample codes for demonstrating OpenNLP package usage NOTE:
@@ -103,7 +98,7 @@ public class DocAnalyzer {
 		// to do: stemming
 		String[] tokens = m_tokenizer.tokenize(text.toLowerCase());
 		for (int j = 0; j < tokens.length; j++)
-			tokens[j] = SnowballStemmingDemo(tokens[j]);
+			tokens[j] = SnowballStemmingDemo(NormalizationDemo(tokens[j]));
 		HashMap<String, Integer> document_tf = new HashMap<String, Integer>();
 		for (String token : tokens) {
 			if (!document_tf.containsKey(token))
@@ -208,7 +203,7 @@ public class DocAnalyzer {
 	public double df(String t) {
 		double N = tf.size();
 		int n_t = df.get(t);
-		return Math.log(N / n_t);
+		return Math.log(1 + N / n_t);
 	}
 
 	public double tf_idf(String t, int d) {
@@ -295,6 +290,8 @@ public class DocAnalyzer {
 	public ArrayList<Double> tf_idf_avg(String name) {
 		HashSet<Integer> ix = movieIndices(name);
 		Double[] temp = new Double[vocab.size()];
+		for (int i = 0; i < temp.length; i++)
+			temp[i] = 0.0;
 		for (int i : ix) {
 			ArrayList<Double> movie_vec = tf_idf.get(i);
 			for (int j = 0; j < movie_vec.size(); j++)
@@ -302,7 +299,10 @@ public class DocAnalyzer {
 		}
 		for (int i = 0; i < temp.length; i++)
 			temp[i] /= Math.max(ix.size(), 1); // avoid division by 0
-		return (ArrayList<Double>) Arrays.asList(temp);
+		ArrayList<Double> toReturn = new ArrayList<Double>();
+		for (int i = 0; i < temp.length; i++)
+			toReturn.add(temp[i]);
+		return toReturn;
 	}
 
 	public static void main(String[] args) throws InvalidFormatException,
@@ -314,7 +314,11 @@ public class DocAnalyzer {
 		int vocSize = 1000;
 		analyzer.setVocabulary(vocSize);
 		analyzer.tf_idf = analyzer.tf_idf(); // initialize tf-idf vectors
-		String testQuery = "9";
+		System.out.println("Movies: " + analyzer.movie_names.toString());
+		String testQuery = "";
+		Scanner keyboard = new Scanner(System.in);
+		System.out.println("Enter movie name");
+		testQuery = keyboard.nextLine();
 		int numKeywords = 10;
 		int moviesPerQuery = 5;
 		analyzer.movieRecommendations(testQuery, numKeywords, moviesPerQuery);
@@ -324,15 +328,47 @@ public class DocAnalyzer {
 			int moviesPerQuery) {
 		ArrayList<Double> vec = tf_idf_avg(name);
 		HashSet<String> keywords = getKeywords(vec, numKeywords);
-		HashSet<String> movies = new HashSet<String>();
-		for (String word : keywords) {
-			HashSet<String> similarMovies = moviesQuery(word, moviesPerQuery);
-			movies.addAll(similarMovies);
-		}
+		HashSet<String> movies = moviesQuery(keywords, moviesPerQuery, name);
+		/*
+		 * HashSet<String> movies = new HashSet<String>(); for (String word :
+		 * keywords) { HashSet<String> similarMovies = moviesQuery(word,
+		 * moviesPerQuery); movies.addAll(similarMovies); }
+		 */
+		//movies.remove(name);
 		System.out.println(movies.toString());
 	}
 
-	private HashSet<String> moviesQuery(String word, int moviesPerQuery) {
+	private HashSet<String> moviesQuery(HashSet<String> keywords,
+			int moviesPerQuery, String name) {
+		// TODO Auto-generated method stub
+		HashMap<String, Double> relevance = new HashMap<String, Double>();
+		for (String movie : movie_names) {
+			if(movie.equals(name))
+				continue;
+			relevance.put(movie, 0.0);
+			ArrayList<Double> movieVec = tf_idf_avg(movie);
+			for (String word : keywords) {
+				int index = vocab.indexOf(word);
+				relevance
+						.put(movie, relevance.get(movie) + movieVec.get(index));
+			}
+		}
+		HashSet<String> mostRelevant = new HashSet<String>();
+		while (mostRelevant.size() < moviesPerQuery) {
+			double max = 0;
+			String best = "";
+			for (String movie : relevance.keySet()) {
+				if (relevance.get(movie) > max && !mostRelevant.contains(movie)) {
+					max = relevance.get(movie);
+					best = movie;
+				}
+			}
+			mostRelevant.add(best);
+		}
+		return mostRelevant;
+	}
+
+	/*private HashSet<String> moviesQuery(String word, int moviesPerQuery) {
 		// TODO Auto-generated method stub
 		HashMap<String, Double> relevance = new HashMap<String, Double>();
 		int index = vocab.indexOf(word);
@@ -353,7 +389,7 @@ public class DocAnalyzer {
 			mostRelevant.add(best);
 		}
 		return mostRelevant;
-	}
+	}*/
 
 	private HashSet<String> getKeywords(ArrayList<Double> vec, int numKeywords) {
 		HashSet<String> keywords = new HashSet<String>();
