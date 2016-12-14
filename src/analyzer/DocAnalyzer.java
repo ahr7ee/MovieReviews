@@ -317,25 +317,29 @@ public class DocAnalyzer {
 		System.out.println("Movies: " + analyzer.movie_names.toString());
 		String testQuery = "";
 		Scanner keyboard = new Scanner(System.in);
-		System.out.println("Enter movie name");
-		testQuery = keyboard.nextLine();
-		int numKeywords = 10;
-		int moviesPerQuery = 5;
-		analyzer.movieRecommendations(testQuery, numKeywords, moviesPerQuery);
+		while (true) {
+			System.out.println("Enter movie name");
+			testQuery = keyboard.nextLine();
+			int numKeywords = 10;
+			int moviesPerQuery = 5;
+			if(!analyzer.movie_names.contains(testQuery)) {
+				System.out.println("Not a valid movie name");
+				keyboard.close();
+				System.exit(0);
+			}
+			analyzer.movieRecommendations(testQuery, numKeywords,
+					moviesPerQuery);
+		}
 	}
 
 	public void movieRecommendations(String name, int numKeywords,
 			int moviesPerQuery) {
 		ArrayList<Double> vec = tf_idf_avg(name);
 		HashSet<String> keywords = getKeywords(vec, numKeywords);
+		System.out.println("Top " + numKeywords + " keywords for " + name
+				+ ": " + keywords.toString());
 		HashSet<String> movies = moviesQuery(keywords, moviesPerQuery, name);
-		/*
-		 * HashSet<String> movies = new HashSet<String>(); for (String word :
-		 * keywords) { HashSet<String> similarMovies = moviesQuery(word,
-		 * moviesPerQuery); movies.addAll(similarMovies); }
-		 */
-		//movies.remove(name);
-		System.out.println(movies.toString());
+		System.out.println("Recommended movies: " + movies.toString());
 	}
 
 	private HashSet<String> moviesQuery(HashSet<String> keywords,
@@ -343,7 +347,7 @@ public class DocAnalyzer {
 		// TODO Auto-generated method stub
 		HashMap<String, Double> relevance = new HashMap<String, Double>();
 		for (String movie : movie_names) {
-			if(movie.equals(name))
+			if (movie.equals(name))
 				continue;
 			relevance.put(movie, 0.0);
 			ArrayList<Double> movieVec = tf_idf_avg(movie);
@@ -367,29 +371,6 @@ public class DocAnalyzer {
 		}
 		return mostRelevant;
 	}
-
-	/*private HashSet<String> moviesQuery(String word, int moviesPerQuery) {
-		// TODO Auto-generated method stub
-		HashMap<String, Double> relevance = new HashMap<String, Double>();
-		int index = vocab.indexOf(word);
-		for (String movie : movie_names) {
-			ArrayList<Double> movieVec = tf_idf_avg(movie);
-			relevance.put(movie, movieVec.get(index));
-		}
-		HashSet<String> mostRelevant = new HashSet<String>();
-		while (mostRelevant.size() < moviesPerQuery) {
-			double max = 0;
-			String best = "";
-			for (String movie : relevance.keySet()) {
-				if (relevance.get(movie) > max && !mostRelevant.contains(movie)) {
-					max = relevance.get(movie);
-					best = movie;
-				}
-			}
-			mostRelevant.add(best);
-		}
-		return mostRelevant;
-	}*/
 
 	private HashSet<String> getKeywords(ArrayList<Double> vec, int numKeywords) {
 		HashSet<String> keywords = new HashSet<String>();
