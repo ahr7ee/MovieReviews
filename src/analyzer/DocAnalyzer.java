@@ -29,11 +29,6 @@ import org.tartarus.snowball.ext.englishStemmer;
 import org.tartarus.snowball.ext.porterStemmer;
 import org.w3c.dom.Document;
 
-/**
- * @author hongning Sample codes for demonstrating OpenNLP package usage NOTE:
- *         the code here is only for demonstration purpose, please revise it
- *         accordingly to maximize your implementation's efficiency!
- */
 public class DocAnalyzer {
 
 	// a list of stopwords
@@ -313,7 +308,9 @@ public class DocAnalyzer {
 		analyzer.LoadDirectory(dir_name, ".xml");
 		int vocSize = 1000;
 		analyzer.setVocabulary(vocSize);
+		long time = System.currentTimeMillis();
 		analyzer.tf_idf = analyzer.tf_idf(); // initialize tf-idf vectors
+		System.out.println("Ellapsed time: " + (System.currentTimeMillis() - time));
 		System.out.println("Movies: " + analyzer.movie_names.toString());
 		String testQuery = "";
 		Scanner keyboard = new Scanner(System.in);
